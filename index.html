@@ -1,0 +1,819 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<!--
+  ═══════════════════════════════════════════════════════════════
+  پروژه: اپلیکیشن «صلوات‌شمار» — نسخه تک‌فایله (وب‌اپ)
+  وضعیت پروژه (برای هوش مصنوعی بعدی که این چت را ادامه می‌دهد):
+  - کاربر (کسری) فنی نیست؛ هدف نهایی: تبدیل این فایل به APK اندروید.
+  - مسیر انتخاب‌شده: HTML/CSS/JS تک‌فایله → PWA → تبدیل با pwabuilder.com
+  - این فایل شامل: ذکرشمار (صلوات + چند ذکر دیگر)، تقویم جلالی با
+    تعطیلات رسمی ایران (ثابت + مناسبت‌های قمری سال ۱۴۰۴)، آمار روزانه،
+    هدف‌گذاری، ویبره، صدا، ذخیره‌سازی در localStorage.
+  - نسخه ۲: باگ‌های UI و منطقی رفع شد، مناسبت‌های کامل ۱۴۰۴ و ۱۴۰۵
+    (رسمی + قمری) اضافه شد، ظاهر بهبود یافت.
+  - قدم‌های بعدی: ساخت manifest.json و service worker برای PWA شدن،
+    آیکون اپ، و راهنمای قدم‌به‌قدم PWABuilder برای خروجی APK.
+  - تاریخ‌های قمری بر اساس رؤیت هلال ممکن است ±۱ روز جابه‌جا شوند.
+  ═══════════════════════════════════════════════════════════════
+-->
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+<meta name="theme-color" content="#0d2321">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<title>صلوات‌شمار</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;600;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0d2321;          /* سبز شب */
+    --bg2:#123230;
+    --card:#16403c;
+    --gold:#d4af5f;        /* طلایی */
+    --gold-soft:#e8cf9a;
+    --ivory:#f4efe4;
+    --teal:#3fd0c0;
+    --red:#e77b7b;
+    --muted:#9db8b2;
+    --shadow:0 10px 30px rgba(0,0,0,.35);
+  }
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{height:100%}
+  body{
+    font-family:'Vazirmatn',sans-serif;
+    background:radial-gradient(1200px 800px at 50% -10%, #1a4a44 0%, var(--bg) 60%);
+    color:var(--ivory);
+    min-height:100vh;
+    user-select:none;
+    overflow-x:hidden;
+  }
+  .app{max-width:430px;margin:0 auto;min-height:100vh;display:flex;flex-direction:column;padding-bottom:calc(92px + env(safe-area-inset-bottom,0px))}
+
+  /* ───── سربرگ ───── */
+  header{padding:18px 20px 8px;text-align:center}
+  header h1{font-weight:800;font-size:1.25rem;letter-spacing:.5px;color:var(--gold-soft)}
+  header .date-line{font-size:.8rem;color:var(--muted);margin-top:4px}
+  .bismillah{font-size:.95rem;color:var(--gold);opacity:.9;margin-bottom:2px}
+
+  /* ───── تب‌ها (محتوا) ───── */
+  .page{display:none;flex:1;padding:8px 18px 20px;animation:fadeIn .25s ease}
+  .page.active{display:block}
+  @keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+
+  /* ───── صفحه شمارنده ───── */
+  .zekr-select{display:flex;flex-wrap:wrap;justify-content:center;gap:8px;padding:6px 2px 12px}
+  .zekr-chip{
+    flex:0 0 auto;padding:8px 16px;border-radius:999px;border:1px solid rgba(212,175,95,.35);
+    background:transparent;color:var(--ivory);font-family:inherit;font-size:.85rem;cursor:pointer;
+    transition:.2s;
+  }
+  .zekr-chip.on{background:var(--gold);color:#1d1a10;font-weight:600;border-color:var(--gold)}
+
+  .counter-wrap{position:relative;width:300px;height:300px;margin:6px auto 10px}
+  .bead-ring{position:absolute;inset:0}
+  .bead{position:absolute;width:3%;height:3%;border-radius:50%;background:rgba(244,239,228,.16);transition:background .3s,box-shadow .3s;transform:translate(-50%,-50%)}
+  .bead.lit{background:var(--gold);box-shadow:0 0 6px rgba(212,175,95,.8)}
+  .tap-btn{
+    position:absolute;inset:34px;border-radius:50%;border:none;cursor:pointer;
+    background:radial-gradient(circle at 35% 30%, #1f5a52 0%, #143d38 70%);
+    box-shadow:var(--shadow), inset 0 2px 12px rgba(255,255,255,.06), inset 0 -6px 18px rgba(0,0,0,.35);
+    color:var(--ivory);font-family:inherit;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;
+    transition:transform .08s ease;
+  }
+  .tap-btn:active{transform:scale(.965)}
+  .tap-btn:focus-visible{outline:3px solid var(--teal);outline-offset:4px}
+  .counter-wrap.done .tap-btn{box-shadow:var(--shadow), inset 0 2px 12px rgba(255,255,255,.06), inset 0 -6px 18px rgba(0,0,0,.35), 0 0 34px rgba(212,175,95,.45)}
+  .tap-btn .count{font-size:3.4rem;font-weight:800;color:var(--gold-soft);line-height:1;font-variant-numeric:tabular-nums}
+  .tap-btn .zekr-text{font-size:.95rem;color:var(--teal);font-weight:600;max-width:82%;text-align:center;line-height:1.5}
+  .tap-btn .hint{font-size:.7rem;color:var(--muted)}
+
+  .zekr-full{text-align:center;color:var(--gold-soft);font-size:.92rem;margin:0 0 12px;opacity:.9;min-height:1.4em}
+  .goal-box{background:var(--card);border-radius:16px;padding:14px 16px;box-shadow:var(--shadow)}
+  .goal-box .row{display:flex;justify-content:space-between;align-items:center;font-size:.85rem;margin-bottom:8px}
+  .goal-box .row b{color:var(--gold-soft)}
+  .progress{height:8px;border-radius:99px;background:rgba(0,0,0,.35);overflow:hidden}
+  .progress>div{height:100%;border-radius:99px;background:linear-gradient(90deg,var(--gold),var(--teal));width:0%;transition:width .3s}
+
+  .actions{display:flex;gap:10px;margin-top:14px}
+  .btn{
+    flex:1;padding:12px;border-radius:14px;border:1px solid rgba(212,175,95,.3);
+    background:transparent;color:var(--ivory);font-family:inherit;font-size:.85rem;cursor:pointer;transition:.2s;
+  }
+  .btn:hover{background:rgba(212,175,95,.12)}
+  .btn.danger{border-color:rgba(231,123,123,.4);color:var(--red)}
+
+  /* ───── تقویم ───── */
+  .cal-head{display:flex;align-items:center;justify-content:space-between;margin:6px 0 12px}
+  .cal-head h2{font-size:1.05rem;color:var(--gold-soft);font-weight:700}
+  .cal-nav{width:40px;height:40px;border-radius:12px;border:1px solid rgba(212,175,95,.3);background:transparent;color:var(--gold-soft);font-size:1.1rem;cursor:pointer}
+  .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+  .cal-grid .wd{font-size:.7rem;color:var(--muted);text-align:center;padding:6px 0}
+  .day{
+    aspect-ratio:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    border-radius:12px;font-size:.85rem;cursor:pointer;position:relative;border:1px solid transparent;transition:.15s;
+    background:rgba(255,255,255,.03);
+  }
+  .day:not(.empty):hover{border-color:rgba(212,175,95,.35)}
+  .day.empty{background:transparent;cursor:default}
+  .day.holiday{color:var(--red);font-weight:700}
+  .day.friday{color:var(--red)}
+  .day.today{background:var(--gold);color:#1d1a10;font-weight:800}
+  .day.today.holiday{color:#7c1f1f}
+  .day.selected{border-color:var(--teal);box-shadow:inset 0 0 0 1px var(--teal)}
+  .day .zdot{position:absolute;top:4px;left:5px;width:5px;height:5px;border-radius:50%;background:var(--gold)}
+  .cal-legend{display:flex;gap:14px;justify-content:center;margin-top:10px;font-size:.68rem;color:var(--muted)}
+  .cal-legend i{display:inline-block;width:8px;height:8px;border-radius:50%;margin-left:4px;vertical-align:middle}
+  .day .dot{position:absolute;bottom:5px;width:4px;height:4px;border-radius:50%;background:var(--teal)}
+  .day.holiday .dot{background:var(--red)}
+  .events-box{margin-top:14px;background:var(--card);border-radius:16px;padding:14px 16px;min-height:74px;box-shadow:var(--shadow)}
+  .events-box h3{font-size:.85rem;color:var(--gold-soft);margin-bottom:8px}
+  .events-box ul{list-style:none}
+  .events-box li{font-size:.83rem;padding:6px 0;border-bottom:1px dashed rgba(255,255,255,.08)}
+  .events-box li:last-child{border-bottom:none}
+  .events-box li.holi::before{content:"● ";color:var(--red)}
+  .events-box li.ev::before{content:"● ";color:var(--teal)}
+  .events-box .none{color:var(--muted);font-size:.8rem}
+  .lunar-note{font-size:.68rem;color:var(--muted);margin-top:10px;text-align:center}
+
+  /* ───── آمار ───── */
+  .stats-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:6px}
+  .stat-card{background:var(--card);border-radius:16px;padding:16px 14px;text-align:center;box-shadow:var(--shadow)}
+  .stat-card .num{font-size:1.7rem;font-weight:800;color:var(--gold-soft);font-variant-numeric:tabular-nums}
+  .stat-card .lbl{font-size:.75rem;color:var(--muted);margin-top:4px}
+  .chart{background:var(--card);border-radius:16px;padding:16px;margin-top:12px;box-shadow:var(--shadow)}
+  .chart h3{font-size:.85rem;color:var(--gold-soft);margin-bottom:14px}
+  .bars{display:flex;align-items:flex-end;gap:8px;height:110px}
+  .bar-col{flex:1;display:flex;flex-direction:column;align-items:center;gap:6px;height:100%;justify-content:flex-end}
+  .bar{width:100%;border-radius:6px 6px 0 0;background:linear-gradient(180deg,var(--teal),#1e6b62);min-height:3px;transition:height .4s}
+  .bar-col span{font-size:.62rem;color:var(--muted)}
+  .bar-col .v{font-size:.65rem;color:var(--gold-soft)}
+
+  /* ───── تنظیمات ───── */
+  .set-row{display:flex;justify-content:space-between;align-items:center;background:var(--card);border-radius:14px;padding:14px 16px;margin-bottom:10px;box-shadow:var(--shadow)}
+  .set-row .t{font-size:.88rem}
+  .set-row .d{font-size:.7rem;color:var(--muted);margin-top:2px}
+  .switch{width:48px;height:26px;border-radius:99px;background:rgba(0,0,0,.4);position:relative;cursor:pointer;transition:.2s;flex-shrink:0}
+  .switch:focus-visible{outline:2px solid var(--teal);outline-offset:2px}
+  .switch::after{content:"";position:absolute;top:3px;right:3px;width:20px;height:20px;border-radius:50%;background:var(--muted);transition:.2s}
+  .switch.on{background:var(--gold)}
+  .switch.on::after{right:25px;background:#fff}
+  .goal-input{width:90px;padding:8px;border-radius:10px;border:1px solid rgba(212,175,95,.35);background:rgba(0,0,0,.25);color:var(--ivory);font-family:inherit;text-align:center;font-size:.9rem}
+
+  /* ───── نوار پایین ───── */
+  nav{
+    position:fixed;bottom:0;left:0;right:0;z-index:10;
+    background:rgba(13,35,33,.92);backdrop-filter:blur(12px);
+    border-top:1px solid rgba(212,175,95,.2);
+  }
+  nav .inner{max-width:430px;margin:0 auto;display:flex}
+  nav button{
+    flex:1;padding:12px 0 14px;background:none;border:none;color:var(--muted);
+    font-family:inherit;font-size:.72rem;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:4px;transition:.2s;
+  }
+  nav button .ic{font-size:1.25rem;line-height:1}
+  nav button.on{color:var(--gold)}
+  nav button.on .ic{transform:translateY(-1px)}
+  nav button .ic{transition:transform .2s}
+  nav .inner{padding-bottom:env(safe-area-inset-bottom,0px)}
+  nav button:focus-visible{outline:2px solid var(--teal);outline-offset:-2px;border-radius:10px}
+
+  .toast{
+    position:fixed;bottom:96px;left:50%;transform:translateX(-50%) translateY(20px);
+    background:var(--gold);color:#1d1a10;padding:10px 22px;border-radius:99px;font-size:.85rem;font-weight:600;
+    opacity:0;pointer-events:none;transition:.3s;z-index:20;box-shadow:var(--shadow);white-space:nowrap;
+  }
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+  @media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+  @media (max-width:360px){.counter-wrap{width:260px;height:260px}.tap-btn .count{font-size:2.8rem}}
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div class="bismillah">﷽</div>
+    <h1>صلوات‌شمار</h1>
+    <div class="date-line" id="headerDate"></div>
+  </header>
+
+  <!-- ═══ صفحه شمارنده ═══ -->
+  <section class="page active" id="page-counter">
+    <div class="zekr-select" id="zekrSelect"></div>
+
+    <div class="counter-wrap">
+      <div class="bead-ring" id="beadRing"></div>
+      <button class="tap-btn" id="tapBtn" aria-label="افزودن ذکر">
+        <span class="zekr-text" id="zekrText"></span>
+        <span class="count" id="countNum">۰</span>
+        <span class="hint">برای ذکر لمس کنید</span>
+      </button>
+    </div>
+
+    <p class="zekr-full" id="zekrFull"></p>
+
+    <div class="goal-box">
+      <div class="row"><span>هدف امروز</span><b id="goalLabel"></b></div>
+      <div class="progress"><div id="goalBar"></div></div>
+    </div>
+
+    <div class="actions">
+      <button class="btn" id="minusBtn">− یکی کم کن</button>
+      <button class="btn danger" id="resetBtn">↺ از اول</button>
+    </div>
+  </section>
+
+  <!-- ═══ صفحه تقویم ═══ -->
+  <section class="page" id="page-calendar">
+    <div class="cal-head">
+      <button class="cal-nav" id="prevMonth" aria-label="ماه قبل">‹</button>
+      <h2 id="calTitle"></h2>
+      <button class="cal-nav" id="nextMonth" aria-label="ماه بعد">›</button>
+    </div>
+    <div class="cal-grid" id="calGrid"></div>
+    <div class="events-box">
+      <h3 id="evTitle">مناسبت‌های روز</h3>
+      <ul id="evList"></ul>
+    </div>
+    <div class="cal-legend">
+      <span><i style="background:var(--red)"></i>تعطیل رسمی</span>
+      <span><i style="background:var(--teal)"></i>مناسبت</span>
+      <span><i style="background:var(--gold)"></i>روز ذکر گفته‌شده</span>
+    </div>
+    <button class="btn" style="margin-top:12px;width:100%" id="todayBtn">برو به امروز</button>
+    <p class="lunar-note">مناسبت‌های قمری بر اساس رؤیت هلال ممکن است ±۱ روز جابه‌جا شوند.</p>
+  </section>
+
+  <!-- ═══ صفحه آمار ═══ -->
+  <section class="page" id="page-stats">
+    <div class="stats-grid">
+      <div class="stat-card"><div class="num" id="stToday">۰</div><div class="lbl">ذکر امروز</div></div>
+      <div class="stat-card"><div class="num" id="stTotal">۰</div><div class="lbl">مجموع کل</div></div>
+      <div class="stat-card"><div class="num" id="stRecord">۰</div><div class="lbl">رکورد روزانه</div></div>
+      <div class="stat-card"><div class="num" id="stStreak">۰</div><div class="lbl">روزهای پیاپی</div></div>
+    </div>
+    <div class="chart">
+      <h3>هفت روز گذشته</h3>
+      <div class="bars" id="weekBars"></div>
+    </div>
+  </section>
+
+  <!-- ═══ صفحه تنظیمات ═══ -->
+  <section class="page" id="page-settings">
+    <div class="set-row">
+      <div><div class="t">ویبره</div><div class="d">لرزش کوتاه با هر ذکر</div></div>
+      <div class="switch" id="swVibrate" role="switch" tabindex="0"></div>
+    </div>
+    <div class="set-row">
+      <div><div class="t">صدا</div><div class="d">صدای ملایم تسبیح</div></div>
+      <div class="switch" id="swSound" role="switch" tabindex="0"></div>
+    </div>
+    <div class="set-row">
+      <div><div class="t">هدف روزانه</div><div class="d">تعداد ذکری که هر روز نیت می‌کنید</div></div>
+      <input class="goal-input" type="number" id="goalInput" min="1" max="100000">
+    </div>
+    <div class="set-row">
+      <div><div class="t">پاک‌کردن همه آمار</div><div class="d">غیرقابل بازگشت</div></div>
+      <button class="btn danger" style="flex:0 0 auto;padding:8px 16px" id="wipeBtn">پاک کن</button>
+    </div>
+  </section>
+</div>
+
+<nav>
+  <div class="inner">
+    <button data-page="counter" class="on"><span class="ic">📿</span>ذکرشمار</button>
+    <button data-page="calendar"><span class="ic">🗓️</span>تقویم</button>
+    <button data-page="stats"><span class="ic">📊</span>آمار</button>
+    <button data-page="settings"><span class="ic">⚙️</span>تنظیمات</button>
+  </div>
+</nav>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ═════════ ابزار ═════════ */
+const faNum = n => String(n).replace(/\d/g, d => '۰۱۲۳۴۵۶۷۸۹'[d]);
+const $ = id => document.getElementById(id);
+
+/* ذخیره‌سازی امن (روی گوشی localStorage، در پیش‌نمایش حافظه موقت) */
+const store = (() => {
+  let mem = {};
+  let ok = false;
+  try { localStorage.setItem('_t','1'); localStorage.removeItem('_t'); ok = true; } catch(e){}
+  return {
+    get(k, def){ try { if(ok){ const v = localStorage.getItem(k); return v===null?def:JSON.parse(v);} } catch(e){} return k in mem ? mem[k] : def; },
+    set(k, v){ try { if(ok){ localStorage.setItem(k, JSON.stringify(v)); return; } } catch(e){} mem[k]=v; },
+    clear(){ try { if(ok) localStorage.clear(); } catch(e){} mem={}; }
+  };
+})();
+
+/* ═════════ تبدیل تاریخ جلالی ═════════ */
+function div(a,b){ return ~~(a/b); }
+function g2j(gy,gm,gd){
+  const g_d_m=[0,31,59,90,120,151,181,212,243,273,304,334];
+  let jy=(gy<=1600)?0:979; gy-=(gy<=1600)?621:1600;
+  const gy2=(gm>2)?(gy+1):gy;
+  let days=(365*gy)+div(gy2+3,4)-div(gy2+99,100)+div(gy2+399,400)-80+gd+g_d_m[gm-1];
+  jy+=33*div(days,12053); days%=12053;
+  jy+=4*div(days,1461); days%=1461;
+  if(days>365){ jy+=div(days-1,365); days=(days-1)%365; }
+  const jm=(days<186)?1+div(days,31):7+div(days-186,30);
+  const jd=1+((days<186)?(days%31):((days-186)%30));
+  return [jy,jm,jd];
+}
+function j2g(jy,jm,jd){
+  let gy=(jy<=979)?621:1600; jy-=(jy<=979)?0:979;
+  let days=(365*jy)+(div(jy,33)*8)+div((jy%33)+3,4)+78+jd+((jm<7)?(jm-1)*31:((jm-7)*30)+186);
+  gy+=400*div(days,146097); days%=146097;
+  if(days>36524){ gy+=100*div(--days,36524); days%=36524; if(days>=365)days++; }
+  gy+=4*div(days,1461); days%=1461;
+  if(days>365){ gy+=div(days-1,365); days=(days-1)%365; }
+  let gd=days+1;
+  const sal_a=[0,31,((gy%4===0&&gy%100!==0)||(gy%400===0))?29:28,31,30,31,30,31,31,30,31,30,31];
+  let gm; for(gm=0;gm<13&&gd>sal_a[gm];gm++) gd-=sal_a[gm];
+  return [gy,gm,gd];
+}
+function jMonthLen(jy,jm){
+  if(jm<=6) return 31;
+  if(jm<=11) return 30;
+  return isLeapJ(jy)?30:29;
+}
+function isLeapJ(jy){
+  const breaks=[-61,9,38,199,426,686,756,818,1111,1181,1210,1635,2060,2097,2192,2262,2324,2394,2456,3178];
+  let bl=breaks.length, jp=breaks[0], jm2, jump=0, leap, n, i;
+  for(i=1;i<bl;i+=1){ jm2=breaks[i]; jump=jm2-jp; if(jy<jm2)break; jp=jm2; }
+  n=jy-jp;
+  if(jump-n<6) n=n-jump+div(jump+4,33)*33;
+  leap=((((n+1)%33)-1)%4);
+  if(leap===-1) leap=4;
+  return leap===0;
+}
+const J_MONTHS=['فروردین','اردیبهشت','خرداد','تیر','مرداد','شهریور','مهر','آبان','آذر','دی','بهمن','اسفند'];
+const WD=['شنبه','یکشنبه','دوشنبه','سه‌شنبه','چهارشنبه','پنجشنبه','جمعه'];
+const WD_SHORT=['ش','ی','د','س','چ','پ','ج'];
+/* شنبه=۰ ... جمعه=۶ */
+function jWeekday(jy,jm,jd){
+  const [gy,gm,gd]=j2g(jy,jm,jd);
+  const d=new Date(gy,gm-1,gd).getDay(); /* یکشنبه=0 */
+  return (d+1)%7;
+}
+function todayJalali(){
+  const now=new Date();
+  return g2j(now.getFullYear(), now.getMonth()+1, now.getDate());
+}
+
+/* ═════════ مناسبت‌ها و تعطیلات ═════════ */
+/* تبدیل تاریخ هجری قمری (حسابی — برای سال‌هایی که جدول رسمی ندارند) */
+function g2jdn(gy,gm,gd){ const a=div(14-gm,12), y=gy+4800-a, m=gm+12*a-3;
+  return gd+div(153*m+2,5)+365*y+div(y,4)-div(y,100)+div(y,400)-32045; }
+function hYearStart(hy){ return 1948440+(hy-1)*354+div(3+11*hy,30); }
+function jdn2hijri(jdn){
+  let hy=div(30*(jdn-1948440)+10646,10631);
+  while(hYearStart(hy)>jdn) hy--;
+  while(hYearStart(hy+1)<=jdn) hy++;
+  let d=jdn-hYearStart(hy), hm=1;
+  const ml=[30,29,30,29,30,29,30,29,30,29,30,((11*hy+14)%30<19)?30:29];
+  for(const L of ml){ if(d<L) break; d-=L; hm++; }
+  return [hy,hm,d+1];
+}
+function jalali2hijri(jy,jm,jd){ const [gy,gm,gd]=j2g(jy,jm,jd); return jdn2hijri(g2jdn(gy,gm,gd)); }
+const H_MONTHS=['محرم','صفر','ربیع‌الاول','ربیع‌الثانی','جمادی‌الاول','جمادی‌الثانی','رجب','شعبان','رمضان','شوال','ذی‌القعده','ذی‌الحجه'];
+
+/* ثابت شمسی — هر سال */
+const FIXED=[
+ {m:1,d:1,t:'جشن نوروز',h:1},{m:1,d:2,t:'عید نوروز',h:1},{m:1,d:3,t:'عید نوروز',h:1},{m:1,d:4,t:'عید نوروز',h:1},
+ {m:1,d:12,t:'روز جمهوری اسلامی',h:1},{m:1,d:13,t:'روز طبیعت (سیزده‌به‌در)',h:1},
+ {m:1,d:18,t:'روز سلامتی',h:0},{m:1,d:25,t:'بزرگداشت عطار نیشابوری',h:0},
+ {m:1,d:29,t:'روز ارتش جمهوری اسلامی',h:0},
+ {m:2,d:1,t:'بزرگداشت سعدی',h:0},{m:2,d:9,t:'روز شوراها',h:0},
+ {m:2,d:10,t:'روز ملی خلیج فارس',h:0},{m:2,d:11,t:'روز جهانی کار و کارگر',h:0},
+ {m:2,d:12,t:'شهادت استاد مطهری — روز معلم',h:0},
+ {m:2,d:25,t:'بزرگداشت فردوسی — پاسداشت زبان فارسی',h:0},{m:2,d:28,t:'بزرگداشت حکیم عمر خیام',h:0},
+ {m:3,d:1,t:'روز بهره‌وری — بزرگداشت ملاصدرا',h:0},
+ {m:3,d:3,t:'فتح خرمشهر — روز مقاومت، ایثار و پیروزی',h:0},
+ {m:3,d:14,t:'رحلت امام خمینی (ره)',h:1},{m:3,d:15,t:'قیام خونین ۱۵ خرداد',h:1},
+ {m:4,d:7,t:'شهادت دکتر بهشتی — روز قوه قضاییه',h:0},{m:4,d:14,t:'روز قلم',h:0},
+ {m:4,d:25,t:'روز بهزیستی و تأمین اجتماعی',h:0},
+ {m:5,d:14,t:'صدور فرمان مشروطیت',h:0},{m:5,d:17,t:'روز خبرنگار',h:0},
+ {m:6,d:1,t:'بزرگداشت ابوعلی سینا — روز پزشک',h:0},{m:6,d:4,t:'روز کارمند',h:0},
+ {m:6,d:13,t:'روز تعاون — بزرگداشت ابوریحان بیرونی',h:0},
+ {m:6,d:27,t:'روز شعر و ادب فارسی — بزرگداشت استاد شهریار',h:0},
+ {m:6,d:31,t:'آغاز هفته دفاع مقدس',h:0},
+ {m:7,d:5,t:'روز گردشگری',h:0},{m:7,d:7,t:'روز آتش‌نشانی و ایمنی',h:0},
+ {m:7,d:8,t:'بزرگداشت مولوی',h:0},{m:7,d:13,t:'روز نیروی انتظامی',h:0},
+ {m:7,d:16,t:'روز جهانی کودک',h:0},{m:7,d:20,t:'بزرگداشت حافظ',h:0},
+ {m:7,d:26,t:'روز تربیت بدنی و ورزش',h:0},
+ {m:8,d:8,t:'روز نوجوان و بسیج دانش‌آموزی',h:0},
+ {m:8,d:13,t:'روز دانش‌آموز — روز ملی مبارزه با استکبار',h:0},
+ {m:8,d:24,t:'روز کتاب، کتابخوانی و کتابدار',h:0},
+ {m:9,d:5,t:'روز بسیج مستضعفان',h:0},{m:9,d:7,t:'روز نیروی دریایی',h:0},
+ {m:9,d:16,t:'روز دانشجو',h:0},{m:9,d:25,t:'روز پژوهش',h:0},
+ {m:9,d:30,t:'شب یلدا (شب چلّه)',h:0},
+ {m:10,d:13,t:'شهادت سردار سپهبد قاسم سلیمانی',h:0},
+ {m:10,d:19,t:'قیام خونین مردم قم',h:0},
+ {m:11,d:12,t:'بازگشت امام خمینی — آغاز دهه فجر',h:0},
+ {m:11,d:19,t:'روز نیروی هوایی',h:0},{m:11,d:22,t:'پیروزی انقلاب اسلامی',h:1},
+ {m:12,d:5,t:'بزرگداشت خواجه نصیرالدین طوسی — روز مهندس',h:0},
+ {m:12,d:15,t:'روز درختکاری',h:0},{m:12,d:25,t:'بزرگداشت پروین اعتصامی',h:0},
+ {m:12,d:29,t:'روز ملی شدن صنعت نفت',h:1}
+];
+
+/* مناسبت‌های قمری سال ۱۴۰۴ (مطابق تقویم رسمی) */
+const LUNAR_1404=[
+ {m:1,d:1,t:'روزهای پایانی ماه مبارک رمضان',h:0},
+ {m:1,d:11,t:'عید سعید فطر',h:1},{m:1,d:12,t:'تعطیل به مناسبت عید سعید فطر',h:1},
+ {m:2,d:4,t:'شهادت امام جعفر صادق (ع)',h:1},
+ {m:2,d:31,t:'ولادت امام رضا (ع)',h:0},
+ {m:3,d:15,t:'روز عرفه',h:0},{m:3,d:16,t:'عید سعید قربان',h:1},{m:3,d:24,t:'عید سعید غدیر خم',h:1},
+ {m:4,d:5,t:'آغاز سال ۱۴۴۷ هجری قمری',h:0},
+ {m:4,d:14,t:'تاسوعای حسینی',h:1},{m:4,d:15,t:'عاشورای حسینی',h:1},
+ {m:5,d:23,t:'اربعین حسینی',h:1},
+ {m:6,d:1,t:'رحلت پیامبر اکرم (ص) و شهادت امام حسن مجتبی (ع)',h:1},
+ {m:6,d:3,t:'شهادت امام رضا (ع)',h:1},
+ {m:6,d:10,t:'شهادت امام حسن عسکری (ع)',h:1},
+ {m:6,d:14,t:'ولادت پیامبر (ص) به روایت اهل سنت — آغاز هفته وحدت',h:0},
+ {m:6,d:19,t:'میلاد پیامبر اکرم (ص) و امام جعفر صادق (ع)',h:1},
+ {m:8,d:3,t:'ولادت حضرت زینب (س) — روز پرستار',h:0},
+ {m:9,d:3,t:'شهادت حضرت فاطمه زهرا (س)',h:1},
+ {m:9,d:29,t:'ولادت حضرت فاطمه (س) — روز زن و روز مادر',h:0},
+ {m:10,d:12,t:'ولادت امام علی (ع) — روز پدر',h:1},
+ {m:10,d:24,t:'شهادت امام موسی کاظم (ع)',h:0},
+ {m:10,d:26,t:'مبعث پیامبر اکرم (ص)',h:1},
+ {m:11,d:3,t:'ولادت امام حسین (ع) — روز پاسدار',h:0},
+ {m:11,d:14,t:'ولادت حضرت قائم (عج) — نیمه شعبان',h:1},
+ {m:12,d:1,t:'آغاز ماه مبارک رمضان',h:0},
+ {m:12,d:18,t:'شب قدر (نوزدهم رمضان)',h:0},
+ {m:12,d:20,t:'شهادت حضرت علی (ع)',h:1},
+ {m:12,d:22,t:'شب قدر (بیست‌وسوم رمضان)',h:0},
+ {m:12,d:28,t:'روز جهانی قدس',h:0}
+];
+
+/* مناسبت‌های قمری سال ۱۴۰۵ (مطابق تقویم رسمی) */
+const LUNAR_1405=[
+ {m:1,d:1,t:'عید سعید فطر',h:1},{m:1,d:2,t:'تعطیل به مناسبت عید سعید فطر',h:1},
+ {m:1,d:25,t:'شهادت امام جعفر صادق (ع)',h:1},
+ {m:1,d:30,t:'ولادت حضرت معصومه (س) — روز دختران',h:0},
+ {m:2,d:9,t:'ولادت امام رضا (ع)',h:0},
+ {m:2,d:27,t:'شهادت امام محمدتقی (ع)',h:0},
+ {m:2,d:28,t:'ازدواج حضرت علی (ع) و حضرت فاطمه (س) — روز ازدواج',h:0},
+ {m:3,d:3,t:'شهادت امام محمدباقر (ع)',h:0},
+ {m:3,d:5,t:'روز عرفه (روز نیایش)',h:0},
+ {m:3,d:6,t:'عید سعید قربان',h:1},
+ {m:3,d:11,t:'ولادت امام علی‌النقی الهادی (ع)',h:0},
+ {m:3,d:14,t:'عید سعید غدیر خم',h:1},
+ {m:3,d:16,t:'ولادت امام موسی کاظم (ع)',h:0},
+ {m:3,d:20,t:'مباهله پیامبر اسلام (ص)',h:0},
+ {m:3,d:26,t:'آغاز سال ۱۴۴۸ هجری قمری',h:0},
+ {m:4,d:3,t:'تاسوعای حسینی',h:1},{m:4,d:4,t:'عاشورای حسینی',h:1},
+ {m:4,d:6,t:'شهادت امام زین‌العابدین (ع)',h:0},
+ {m:5,d:13,t:'اربعین حسینی',h:1},
+ {m:5,d:21,t:'رحلت پیامبر اکرم (ص) — شهادت امام حسن مجتبی (ع)',h:1},
+ {m:5,d:22,t:'شهادت امام رضا (ع)',h:1},
+ {m:5,d:30,t:'شهادت امام حسن عسکری (ع) — آغاز امامت حضرت ولیعصر (عج)',h:1},
+ {m:6,d:3,t:'ولادت پیامبر (ص) به روایت اهل سنت — آغاز هفته وحدت',h:0},
+ {m:6,d:8,t:'ولادت پیامبر اکرم (ص) و امام جعفر صادق (ع)',h:1},
+ {m:6,d:29,t:'ولادت امام حسن عسکری (ع)',h:0},
+ {m:7,d:24,t:'ولادت حضرت زینب (س) — روز پرستار',h:0},
+ {m:8,d:22,t:'شهادت حضرت فاطمه زهرا (س)',h:1},
+ {m:9,d:9,t:'ولادت حضرت فاطمه زهرا (س) — روز زن و روز مادر',h:0},
+ {m:9,d:20,t:'ولادت امام محمدباقر (ع)',h:0},
+ {m:9,d:22,t:'شهادت امام علی‌النقی الهادی (ع)',h:0},
+ {m:9,d:29,t:'ولادت امام محمدتقی (ع)',h:0},
+ {m:10,d:2,t:'ولادت امام علی (ع) — روز پدر',h:1},
+ {m:10,d:14,t:'شهادت امام موسی کاظم (ع)',h:0},
+ {m:10,d:16,t:'مبعث پیامبر اکرم (ص)',h:1},
+ {m:10,d:22,t:'ولادت امام حسین (ع) — روز پاسدار',h:0},
+ {m:10,d:23,t:'ولادت حضرت ابوالفضل العباس (ع) — روز جانباز',h:0},
+ {m:10,d:24,t:'ولادت امام زین‌العابدین (ع)',h:0},
+ {m:10,d:30,t:'ولادت حضرت علی‌اکبر (ع) — روز جوان',h:0},
+ {m:11,d:4,t:'ولادت حضرت قائم (عج) — نیمه شعبان',h:1},
+ {m:11,d:24,t:'آغاز ماه مبارک رمضان',h:0},
+ {m:11,d:28,t:'وفات حضرت خدیجه (س)',h:0},
+ {m:12,d:3,t:'ولادت امام حسن مجتبی (ع)',h:0},
+ {m:12,d:6,t:'شب قدر (نوزدهم رمضان)',h:0},
+ {m:12,d:7,t:'ضربت خوردن حضرت علی (ع)',h:0},
+ {m:12,d:8,t:'شب قدر (بیست‌ویکم رمضان)',h:0},
+ {m:12,d:9,t:'شهادت حضرت علی (ع)',h:1},
+ {m:12,d:10,t:'شب قدر (بیست‌وسوم رمضان)',h:0},
+ {m:12,d:14,t:'روز جهانی قدس (آخرین جمعه رمضان)',h:0},
+ {m:12,d:19,t:'عید سعید فطر',h:1},
+ {m:12,d:20,t:'تعطیل به مناسبت عید سعید فطر',h:1}
+];
+const LUNAR_TABLES={1404:LUNAR_1404, 1405:LUNAR_1405};
+
+/* برای سایر سال‌ها: مناسبت‌های قمری بر اساس ماه/روز قمری (محاسبه تقریبی) */
+const HIJRI_EVENTS=[
+ {hm:1,hd:9,t:'تاسوعای حسینی',h:1},{hm:1,hd:10,t:'عاشورای حسینی',h:1},
+ {hm:2,hd:20,t:'اربعین حسینی',h:1},
+ {hm:2,hd:28,t:'رحلت پیامبر اکرم (ص) — شهادت امام حسن مجتبی (ع)',h:1},
+ {hm:2,hd:30,t:'شهادت امام رضا (ع)',h:1},
+ {hm:3,hd:8,t:'شهادت امام حسن عسکری (ع)',h:1},
+ {hm:3,hd:17,t:'ولادت پیامبر اکرم (ص) و امام جعفر صادق (ع)',h:1},
+ {hm:6,hd:3,t:'شهادت حضرت فاطمه زهرا (س)',h:1},
+ {hm:6,hd:20,t:'ولادت حضرت فاطمه زهرا (س) — روز زن',h:0},
+ {hm:7,hd:13,t:'ولادت امام علی (ع) — روز پدر',h:1},
+ {hm:7,hd:27,t:'مبعث پیامبر اکرم (ص)',h:1},
+ {hm:8,hd:15,t:'ولادت حضرت قائم (عج) — نیمه شعبان',h:1},
+ {hm:9,hd:1,t:'آغاز ماه مبارک رمضان',h:0},
+ {hm:9,hd:21,t:'شهادت حضرت علی (ع)',h:1},
+ {hm:10,hd:1,t:'عید سعید فطر',h:1},{hm:10,hd:2,t:'تعطیل به مناسبت عید سعید فطر',h:1},
+ {hm:10,hd:25,t:'شهادت امام جعفر صادق (ع)',h:1},
+ {hm:12,hd:9,t:'روز عرفه',h:0},{hm:12,hd:10,t:'عید سعید قربان',h:1},
+ {hm:12,hd:18,t:'عید سعید غدیر خم',h:1}
+];
+
+function getEvents(jy,jm,jd){
+  const out=[];
+  FIXED.forEach(e=>{ if(e.m===jm&&e.d===jd) out.push(e); });
+  const table=LUNAR_TABLES[jy];
+  if(table){
+    table.forEach(e=>{ if(e.m===jm&&e.d===jd) out.push(e); });
+  } else {
+    const [,hm,hd]=jalali2hijri(jy,jm,jd);
+    HIJRI_EVENTS.forEach(e=>{ if(e.hm===hm&&e.hd===hd) out.push({t:e.t+' (تقریبی)',h:e.h}); });
+  }
+  return out;
+}
+function isHoliday(jy,jm,jd){ return getEvents(jy,jm,jd).some(e=>e.h) || jWeekday(jy,jm,jd)===6; }
+
+/* ═════════ حالت برنامه ═════════ */
+const ZEKRS=[
+  {id:'salavat', short:'صلوات', full:'اللهم صل علی محمد و آل محمد'},
+  {id:'sobhan',  short:'سبحان‌الله', full:'سبحان الله'},
+  {id:'hamd',    short:'الحمدلله', full:'الحمد لله'},
+  {id:'tahlil',  short:'لا اله الا الله', full:'لا اله الا الله'},
+  {id:'takbir',  short:'الله اکبر', full:'الله اکبر'},
+  {id:'estghfar',short:'استغفار', full:'استغفر الله ربی و اتوب الیه'}
+];
+let [TY,TM,TD]=todayJalali();
+let todayKey=`${TY}/${TM}/${TD}`;
+/* اگر نیمه‌شب گذشت و اپ باز بود، تاریخ امروز به‌روز شود */
+function refreshToday(){
+  const [y,m,d]=todayJalali();
+  if(y!==TY||m!==TM||d!==TD){
+    TY=y; TM=m; TD=d; todayKey=`${TY}/${TM}/${TD}`;
+    goalDone=dayTotal(todayKey)>=state.goal;
+    $('headerDate').textContent=`${WD[jWeekday(TY,TM,TD)]} ${faNum(TD)} ${J_MONTHS[TM-1]} ${faNum(TY)}`;
+    renderCounter();
+  }
+}
+setInterval(refreshToday, 30000);
+document.addEventListener('visibilitychange', ()=>{ if(!document.hidden) refreshToday(); });
+
+let state={
+  zekr: store.get('zekr','salavat'),
+
+  counts: store.get('counts',{}),          /* {تاریخ: {ذکر: عدد}} */
+  goal: store.get('goal',100),
+  vibrate: store.get('vibrate',true),
+  sound: store.get('sound',false)
+};
+if(!ZEKRS.some(z=>z.id===state.zekr)) state.zekr='salavat';
+if(typeof state.goal!=='number'||!(state.goal>=1)) state.goal=100;
+if(typeof state.counts!=='object'||state.counts===null||Array.isArray(state.counts)) state.counts={};
+
+function save(){ store.set('zekr',state.zekr); store.set('counts',state.counts); store.set('goal',state.goal); store.set('vibrate',state.vibrate); store.set('sound',state.sound); }
+function todayCount(z){ z=z||state.zekr; return (state.counts[todayKey]||{})[z]||0; }
+function dayTotal(key){ const o=state.counts[key]||{}; return Object.values(o).reduce((a,b)=>a+b,0); }
+function grandTotal(){ return Object.keys(state.counts).reduce((a,k)=>a+dayTotal(k),0); }
+
+/* ═════════ صدا ═════════ */
+let actx=null;
+function click(){
+  if(!state.sound) return;
+  try{
+    actx=actx||new (window.AudioContext||window.webkitAudioContext)();
+    if(actx.state==='suspended') actx.resume();
+    const o=actx.createOscillator(), g=actx.createGain();
+    o.type='sine'; o.frequency.value=880;
+    g.gain.setValueAtTime(.08,actx.currentTime);
+    g.gain.exponentialRampToValueAtTime(.001,actx.currentTime+.09);
+    o.connect(g); g.connect(actx.destination);
+    o.start(); o.stop(actx.currentTime+.1);
+  }catch(e){}
+}
+
+/* ═════════ حلقه دانه‌های تسبیح ═════════ */
+const BEADS=33;
+(function buildBeads(){
+  const ring=$('beadRing');
+  for(let i=0;i<BEADS;i++){
+    const a=-Math.PI/2 + (i/BEADS)*Math.PI*2;
+    const b=document.createElement('div');
+    b.className='bead';
+    /* درصدی، تا روی صفحه‌های کوچک هم دقیق روی حلقه بنشیند */
+    b.style.left=(50 - (50-1.5)*Math.cos(a))+'%';
+    b.style.top =(50 + (50-1.5)*Math.sin(a))+'%';
+    ring.appendChild(b);
+  }
+})();
+function renderBeads(){
+  const lit=todayCount()%BEADS;
+  document.querySelectorAll('.bead').forEach((b,i)=>b.classList.toggle('lit', i<lit || (todayCount()>0&&lit===0)));
+}
+
+/* ═════════ رندر شمارنده ═════════ */
+function renderCounter(){
+  const z=ZEKRS.find(x=>x.id===state.zekr)||ZEKRS[0];
+  $('zekrText').textContent=z.short;
+  $('zekrFull').textContent=z.full;
+  $('countNum').textContent=faNum(todayCount());
+  const total=dayTotal(todayKey);
+  const pct=Math.min(100, Math.round(total/state.goal*100));
+  $('goalLabel').textContent=`${faNum(total)} از ${faNum(state.goal)} (${faNum(pct)}٪)`;
+  $('goalBar').style.width=pct+'%';
+  document.querySelector('.counter-wrap').classList.toggle('done', total>=state.goal && total>0);
+  renderBeads();
+}
+function renderZekrChips(){
+  const wrap=$('zekrSelect'); wrap.innerHTML='';
+  ZEKRS.forEach(z=>{
+    const b=document.createElement('button');
+    b.className='zekr-chip'+(z.id===state.zekr?' on':'');
+    b.textContent=z.short;
+    b.onclick=()=>{ state.zekr=z.id; save(); renderZekrChips(); renderCounter(); };
+    wrap.appendChild(b);
+  });
+}
+let goalDone=dayTotal(todayKey)>=state.goal;
+$('tapBtn').addEventListener('click',()=>{
+  refreshToday();
+  if(!state.counts[todayKey]) state.counts[todayKey]={};
+  state.counts[todayKey][state.zekr]=(state.counts[todayKey][state.zekr]||0)+1;
+  save();
+  if(state.vibrate && navigator.vibrate) navigator.vibrate(18);
+  click();
+  renderCounter();
+  const total=dayTotal(todayKey);
+  if(total>=state.goal && !goalDone){ goalDone=true; toast('🎉 به هدف امروز رسیدی! قبول باشه'); if(state.vibrate && navigator.vibrate) navigator.vibrate([60,40,60]); }
+  if(todayCount()%100===0) toast(`${faNum(todayCount())} ذکر — التماس دعا 🤲`);
+});
+$('minusBtn').onclick=()=>{
+  const c=todayCount();
+  if(c>0){
+    state.counts[todayKey][state.zekr]=c-1; save();
+    if(dayTotal(todayKey)<state.goal) goalDone=false;
+    renderCounter();
+  }
+};
+$('resetBtn').onclick=()=>{
+  if(confirm('شمارش ذکر فعلیِ امروز صفر شود؟')){
+    if(state.counts[todayKey]) state.counts[todayKey][state.zekr]=0;
+    if(dayTotal(todayKey)<state.goal) goalDone=false;
+    save(); renderCounter();
+  }
+};
+
+/* ═════════ رندر تقویم ═════════ */
+let calY=TY, calM=TM, selY=TY, selM=TM, selD=TD;
+function renderCal(){
+  $('calTitle').textContent=`${J_MONTHS[calM-1]} ${faNum(calY)}`;
+  const grid=$('calGrid'); grid.innerHTML='';
+  WD_SHORT.forEach(w=>{ const el=document.createElement('div'); el.className='wd'; el.textContent=w; grid.appendChild(el); });
+  const first=jWeekday(calY,calM,1), len=jMonthLen(calY,calM);
+  if(selY===calY&&selM===calM&&selD>len) selD=len;
+  for(let i=0;i<first;i++){ const e=document.createElement('div'); e.className='day empty'; grid.appendChild(e); }
+  for(let d=1;d<=len;d++){
+    const el=document.createElement('div');
+    el.className='day';
+    el.setAttribute('role','button'); el.tabIndex=0;
+    const evs=getEvents(calY,calM,d);
+    const wd=jWeekday(calY,calM,d);
+    if(wd===6) el.classList.add('friday');
+    if(evs.some(e=>e.h)) el.classList.add('holiday');
+    if(calY===TY&&calM===TM&&d===TD) el.classList.add('today');
+    if(calY===selY&&calM===selM&&d===selD) el.classList.add('selected');
+    el.textContent=faNum(d);
+    if(evs.length){ const dot=document.createElement('div'); dot.className='dot'; el.appendChild(dot); }
+    if(dayTotal(`${calY}/${calM}/${d}`)>0){ const zd=document.createElement('div'); zd.className='zdot'; zd.title='در این روز ذکر گفته‌اید'; el.appendChild(zd); }
+    const pick=()=>{ selY=calY; selM=calM; selD=d; renderCal(); };
+    el.onclick=pick;
+    el.onkeydown=e=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); pick(); } };
+    grid.appendChild(el);
+  }
+  if(selY===calY&&selM===calM) renderEvents(calY,calM,selD);
+  else renderEvents(selY,selM,selD);
+}
+function renderEvents(jy,jm,jd){
+  const wd=jWeekday(jy,jm,jd);
+  const [hy,hm,hd]=jalali2hijri(jy,jm,jd);
+  $('evTitle').textContent=`${WD[wd]} ${faNum(jd)} ${J_MONTHS[jm-1]} ${faNum(jy)} — ${faNum(hd)} ${H_MONTHS[hm-1]} ${faNum(hy)}`;
+  const evs=getEvents(jy,jm,jd);
+  const ul=$('evList'); ul.innerHTML='';
+  if(wd===6){ const li=document.createElement('li'); li.className='holi'; li.textContent='جمعه — تعطیل هفتگی'; ul.appendChild(li); }
+  evs.forEach(e=>{
+    const li=document.createElement('li');
+    li.className=e.h?'holi':'ev';
+    li.textContent=e.t+(e.h?' (تعطیل رسمی)':'');
+    ul.appendChild(li);
+  });
+  const total=dayTotal(`${jy}/${jm}/${jd}`);
+  if(total>0){ const li=document.createElement('li'); li.className='ev'; li.textContent=`ذکرهای این روز: ${faNum(total)}`; ul.appendChild(li); }
+  if(!evs.length && wd!==6 && !total){ const li=document.createElement('li'); li.className='none'; li.textContent='مناسبتی ثبت نشده است.'; ul.appendChild(li); }
+}
+$('prevMonth').onclick=()=>{ calM--; if(calM<1){calM=12;calY--;} renderCal(); };
+$('nextMonth').onclick=()=>{ calM++; if(calM>12){calM=1;calY++;} renderCal(); };
+$('todayBtn').onclick=()=>{ calY=TY; calM=TM; selY=TY; selM=TM; selD=TD; renderCal(); };
+
+/* ═════════ آمار ═════════ */
+function jDateAddDays(jy,jm,jd,delta){
+  const [gy,gm,gd]=j2g(jy,jm,jd);
+  const dt=new Date(gy,gm-1,gd); dt.setDate(dt.getDate()+delta);
+  return g2j(dt.getFullYear(),dt.getMonth()+1,dt.getDate());
+}
+function renderStats(){
+  $('stToday').textContent=faNum(dayTotal(todayKey));
+  $('stTotal').textContent=faNum(grandTotal());
+  let rec=0; Object.keys(state.counts).forEach(k=>{ const t=dayTotal(k); if(t>rec)rec=t; });
+  $('stRecord').textContent=faNum(rec);
+  /* روزهای پیاپی: امروز اگر صفر بود زنجیره را نمی‌شکند، از دیروز شمرده می‌شود */
+  let streak=0;
+  const start=(dayTotal(todayKey)>0)?0:1;
+  for(let i=start; i<3650; i++){
+    const [y,m,d]=jDateAddDays(TY,TM,TD,-i);
+    if(dayTotal(`${y}/${m}/${d}`)>0) streak++; else break;
+  }
+  $('stStreak').textContent=faNum(streak);
+  /* نمودار ۷ روز */
+  const bars=$('weekBars'); bars.innerHTML='';
+  const data=[];
+  for(let i=6;i>=0;i--){
+    const [y,m,d]=jDateAddDays(TY,TM,TD,-i);
+    data.push({label:i===0?'امروز':faNum(d), v:dayTotal(`${y}/${m}/${d}`)});
+  }
+  const mx=Math.max(1,...data.map(x=>x.v));
+  data.forEach(x=>{
+    const col=document.createElement('div'); col.className='bar-col';
+    col.innerHTML=`<span class="v">${x.v?faNum(x.v):''}</span><div class="bar" style="height:${Math.max(3,Math.round(x.v/mx*72))}%"></div><span>${x.label}</span>`;
+    bars.appendChild(col);
+  });
+}
+
+/* ═════════ تنظیمات ═════════ */
+function renderSettings(){
+  $('swVibrate').classList.toggle('on',state.vibrate);
+  $('swVibrate').setAttribute('aria-checked',state.vibrate);
+  $('swSound').classList.toggle('on',state.sound);
+  $('swSound').setAttribute('aria-checked',state.sound);
+  $('goalInput').value=state.goal;
+}
+function toggleVibrate(){ state.vibrate=!state.vibrate; save(); renderSettings(); if(state.vibrate&&navigator.vibrate)navigator.vibrate(18); }
+function toggleSound(){ state.sound=!state.sound; save(); renderSettings(); if(state.sound) click(); }
+$('swVibrate').onclick=toggleVibrate;
+$('swSound').onclick=toggleSound;
+[['swVibrate',toggleVibrate],['swSound',toggleSound]].forEach(([id,fn])=>{
+  $(id).onkeydown=e=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); fn(); } };
+});
+$('goalInput').onchange=e=>{
+  const v=parseInt(e.target.value,10);
+  state.goal=(isNaN(v)||v<1)?100:Math.min(100000,v);
+  goalDone=dayTotal(todayKey)>=state.goal;
+  save(); renderSettings(); renderCounter();
+  toast('هدف روزانه ذخیره شد');
+};
+$('wipeBtn').onclick=()=>{
+  if(confirm('همه آمار و شمارش‌ها برای همیشه پاک شود؟')){
+    state.counts={}; goalDone=false; save(); renderCounter(); renderStats(); renderCal(); toast('همه آمار پاک شد');
+  }
+};
+
+/* ═════════ ناوبری ═════════ */
+document.querySelectorAll('nav button').forEach(b=>{
+  b.setAttribute('aria-pressed', b.classList.contains('on'));
+  b.onclick=()=>{
+    document.querySelectorAll('nav button').forEach(x=>{ x.classList.remove('on'); x.setAttribute('aria-pressed','false'); });
+    b.classList.add('on'); b.setAttribute('aria-pressed','true');
+    document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+    $('page-'+b.dataset.page).classList.add('active');
+    if(b.dataset.page==='stats') renderStats();
+    if(b.dataset.page==='calendar') renderCal();
+  };
+});
+
+/* ═════════ Toast ═════════ */
+let toastT=null;
+function toast(msg){
+  const t=$('toast'); t.textContent=msg; t.classList.add('show');
+  clearTimeout(toastT); toastT=setTimeout(()=>t.classList.remove('show'),2200);
+}
+
+/* ═════════ شروع ═════════ */
+$('headerDate').textContent=`${WD[jWeekday(TY,TM,TD)]} ${faNum(TD)} ${J_MONTHS[TM-1]} ${faNum(TY)}`;
+renderZekrChips();
+renderCounter();
+renderCal();
+renderStats();
+renderSettings();
+</script>
+
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js').catch(() => {});
+  });
+}
+</script>
+</body>
+</html>
